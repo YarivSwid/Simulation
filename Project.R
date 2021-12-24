@@ -117,12 +117,23 @@ GroundWorkeoutTrajectory<-trajectory("GroundWorkeoutTrajectory")%>%
   set_attribute(key=c("GroundWorkeoutDone"),value=function()0)
 
 jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>% 
-  log_("Lets Jump!!")%>%
   simmer::select(resources =c("jumpToolA","jumpToolB"),policy ="shortest-queue-available" ) %>%
   seize_selected(amount = 1) %>%
   timeout(function()trimmedNorm(5,1.7)) %>%
   release_selected(amount = 1)%>%
   set_attribute(key=c("jumpToolDone"),value=function()0)
+
+BarWorkeoutTrajectory<-trajectory("BarWorkeoutTrajectory")%>%
+  simmer::select(resources =c("barA","barB"),policy ="shortest-queue-available" ) %>%
+  seize_selected(amount = 1) %>%
+  timeout(function()trimmedNorm(5,1.7)) %>%
+  release_selected(amount = 1)%>%
+  set_attribute(key=c("BarDone"),value=function()0)
+
+gradualParallelBarsTrajectory<-trajectory("gradualParallelBarsTrajectory")%>%
+  addService("BarWorkeout",function()trimmedNorm(5,1.7))%>%
+  set_attribute(key=c("gradualParallelBarsDone"),value=function()0)
+
 
 ##----------------------------------------- 4.  All trajectories, start from main trajectory and add sub-trajectories ABOVE IT it . ------------------------------------------------
 VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
@@ -138,29 +149,32 @@ didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
   log_("I didnt watched the tape")
 
 manTrajectory<-trajectory("manTrajectory")%>%
-  log_("a")%>%
   set_attribute(keys = c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter"),value = function() manAttributeInf())%>%  #set is a part of the trajectory-always
-  log_("b")%>%
   addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
-  log_("c")%>%
   branch(option=function() rdiscrete (1,getProbabilityVectorMan(get_attribute(olympicsGames,c("ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone"))),c(1,2,3,4,5,6)) ,continue= c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE),ParallelBarsTrajectory,ringsTrajectory,horizonalBarTrajectory,pommelHorseTrajectory,GroundWorkeoutTrajectory,jumpToolTrajectory)%>%
   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
   rollback(amount = 4, times = 5)
 
-
-# womanTrajectory<-trajectory("womanTrajectory")%>% 
-#   #עייפות-set_attribute(keys=c("makeTime","drinkTime"),value=function() coffeeInf())%>%  #set is a part of the trajectory-always
+#
+# womanTrajectory<-trajectory("womanTrajectory")%>%
+#   set_attribute(keys = c("tiredness","GroundWorkeoutDone","gradualParallelBarsDone","BarDone","jumpToolDone","VideoTestersRoom","counter"),value = function() manAttributeInf())%>%  #set is a part of the trajectory-always
 #   addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
+#   branch(option=function() rdiscrete (1,getProbabilityVectorMan(get_attribute(olympicsGames,c("GroundWorkeoutDone","gradualParallelBarsDone","BarDone","jumpToolDone"))),c(1,2,3,4)) ,continue= c(TRUE,TRUE,TRUE,TRUE),GroundWorkeoutTrajectory,gradualParallelBarsTrajectory,BarWorkeoutTrajectory,jumpToolTrajectory)%>%
+#   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
+#   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
+#   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
+#   rollback(amount = 4, times = 5)
+# 
 #   
-  
   
   
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function()rexp(1,2))
-                # ,add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=#קובץ אקסל)
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function()rexp(1,0.05))#%>%
+  #add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,2))
+
 set.seed(345)
 reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
                             
