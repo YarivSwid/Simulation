@@ -22,26 +22,16 @@ timeoutVideo <- function(counter){
   return(timeDist) 
 }
 
-# addServicevideoTesters<- function(path,videoRoom,counter){
-#   timeDist <- 0
-#   for(i in 1:counter){
-#     timeDist <- timeDist + function() trimmedNorm(5,1.7)
-#   }
-#   timeout(path,timeDist)
-#   release(path,videoRoom,1)
-# }
-
+getRoom <- function(room){
+  return(room)
+}
 
 manAttributeInf<-function(){
-  #return (c(0,1,1,1,1,1,1,getVideoRoom(),0))
-  return (c(0,1,1,1,1,1,1,0,0))
+  return (c(0,1,1,1,1,1,1,getVideoRoom(),0))
 
 }
 
-# getTiredness<-function(){
-#   
-#   return ()
-# }
+
 
 getVideoRoom<-function(){
   roomNumber <- rdiscrete(1, c(0.2,0.2,0.2,0.2,0.2), values = 1:5)
@@ -49,13 +39,14 @@ getVideoRoom<-function(){
   return (VideoRoom)
 }
 
-# getProbabilityVectorMan<-function(){
-#   #if(gender==man)
-#   ProbabilityVector <- get_attribute(olympicsGames)[2:7]
-#   leftOvers <- sum(ProbabilityVector)
-#   ProbabilityVector <- ProbabilityVector/leftOvers
-#   return (ProbabilityVector)
-# }
+getProbabilityVectorMan<-function(vect){
+  #if(gender==man)
+  #ProbabilityVector <- get_attribute(olympicsGames)[2:7]
+  #leftOvers <- sum(vect)
+  #vect <- vect/leftOvers
+  #return (vect)
+  return(c(0,0,0,0,0,1))
+}
 
 
 
@@ -128,25 +119,26 @@ jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>%
 
 ##----------------------------------------- 4.  All trajectories, start from main trajectory and add sub-trajectories ABOVE IT it . ------------------------------------------------
 VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
-timeout(function() timeoutVideo(get_attribute(elevators,"counter")))
+  simmer::select(resources = function() get_attribute(olympicsGames,"VideoTestersRoom")) %>%
+  timeout(function() timeoutVideo(get_attribute(olympicsGames,"counter")))%>%
+  release_selected(amount = 1)%>%
+  set_attribute(key=c("counter"),value=function() 0)
 
-addServicevideoTesters(get_attribute(olympicsGames,key = "VideoTestersRoom"),get_attribute(olympicsGames,key = "counter"))
-#set_attribute(key=c("counter"),value=function() 0)
+didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
+  log_("I didnt watched the tape")
 
 manTrajectory<-trajectory("manTrajectory")%>% 
   set_attribute(keys=c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter"),value=function() manAttributeInf())%>%  #set is a part of the trajectory-always
   addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
-  branch(option=function() rdiscrete (1, function() getProbabilityVectorMan(get_attribute(olympicsGames,c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone"))),c(1,2,3,4,5,6)) ,continue= c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE),ParallelBarsTrajectory,ringsTrajectory,horizonalBarTrajectory,pommelHorseTrajectory,GroundWorkeoutTrajectory,jumpToolTrajectory)%>%  set_attribute(key=c("counter"),value=get_attribute(olympicsGames,"counter")+1)%>%
-  seize(function()get_attribute(olympicsGames,"VideoTestersRoom"), 1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =NULL )%>%
+  branch(option=function() rdiscrete (1, function() getProbabilityVectorMan(get_attribute(olympicsGames,c("ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone"))),c(1,2,3,4,5,6)) ,continue= c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE),ParallelBarsTrajectory,ringsTrajectory,horizonalBarTrajectory,pommelHorseTrajectory,GroundWorkeoutTrajectory,jumpToolTrajectory)%>%
+  set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
+  simmer::select(resources = function() get_attribute(olympicsGames,"VideoTestersRoom")) %>%
+  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
   rollback(amount = 3, times = 5)
-  
+  log_("Once I was younger..")
   # set_attribute(keys=c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter"),value=function() manAttributeInf())%>%  #set is a part of the trajectory-always
   # addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
-  # branch(option=function() rdiscrete (1, function()getProbabilityVectorMan(),c(1,2,3,4,5,6)) ,continue= c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE),ParallelBarsTrajectory,ringsTrajectory,horizonalBarTrajectory,pommelHorseTrajectory,GroundWorkeoutTrajectory,jumpToolTrajectory)%>% 
-  # set_attribute(key=c("counter"),value=get_attribute(olympicsGames,"counter")+1)%>%
-  # seize(function()get_attribute(olympicsGames,"VideoTestersRoom"), 1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =NULL )%>%
-  # rollback(amount = 3, times = 5)
-
+  # branch(option=function() rdiscret
 
 
 womanTrajectory<-trajectory("womanTrajectory")%>% 
