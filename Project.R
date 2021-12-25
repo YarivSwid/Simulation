@@ -3,6 +3,27 @@ findStartTime<- function(now){
   endTime <- 60-thisTime%%60
   return(endTime)
 }
+tierdnessValue <- function()
+{
+  u1 <- runif(1,0,1)
+  u2 <- runif(1,0,1)
+  print(u1)
+  if(u1 <1/3)
+  {
+    res <-  (u2/8)^(1/3)
+  }
+  
+  if(1/3<= u1 & u1<2/3)
+  {
+    res <- u2/6
+  }
+  
+  if(2/3<= u1 & u1<1)
+  {
+    res <-  (1+(9-u2)^(1/2))/3
+  }
+  return(res) 
+}
 
 trimmedNorm<-function(mu,sd){
   while(TRUE){
@@ -43,14 +64,6 @@ getVideoRoom<-function(){
 }
 
 getProbabilityVectorMan<-function(vect){
-  if(grepl('woman',get_name(olympicsGames),TRUE)){#grepl brings back true/false if the substring is contained
-    leftOvers <- sum(vect)
-    vect <- vect/leftOvers
-    print(vect)
-    return (vect)
-  }
-  
-  paste("PRO BAB VEC",vect)
   leftOvers <- sum(vect)
   vect <- vect/leftOvers
   print(vect)
@@ -194,9 +207,9 @@ set.seed(345)
 reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
                             
                                   
-lab <-  get_mon_resources(olympicsGames)
-olympicsGamesData<-get_mon_arrivals(olympicsGames)
-yariv <- get_mon_attributes(olympicsGames)
+mon_resources <-  get_mon_resources(olympicsGames)
+mon_arrivals<-get_mon_arrivals(olympicsGames)
+mon_attributes <- get_mon_attributes(olympicsGames)
 
                                 
                                 
