@@ -18,7 +18,7 @@ addService<- function  (path,sname,timeDist){
 timeoutVideo <- function(counter){
   timeDist <- 0
   for(i in 1:counter){
-    timeDist <- timeDist +  trimmedNorm(5,1.7)
+    timeDist <- timeDist +  trimmedNorm(3,45/60)
   } 
   return(timeDist) 
 }
@@ -106,7 +106,7 @@ horizonalBarTrajectory<-trajectory("horizonalBarTrajectory")%>%
   log_("I love horizonal bars")%>%
   addService("horizonalBar",function()trimmedNorm(5,1.7))%>%
   log_("NOW TO THE MANU")%>%
-  set_attribute(key=c("horizonalBarDone"),value=function()0)
+  set_attribute(key=c("horizonalBarDone"),value=function() 0)
 
 pommelHorseTrajectory<-trajectory("pommelHorseTrajectory")%>%
   log_("Pommle horse is kinda fine")%>%
@@ -145,7 +145,16 @@ VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
 
 didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
   log_("I didnt watched the tape")
-
+  
+nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
+  batch(10, timeout = 60, permanent = FALSE)%>% #"waiting area"
+  simmer::select(resources = c("nutritionist1","nutritionist2"),policy ="shortest-queue-available") %>%
+  seize_selected(amount=1)%>%
+  timeout(function() runif(1,30,40))%>%
+  log_("I watched the lecture")%>%
+  release_selected(amount=1)%>%
+  separate()
+  
 manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(keys = c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter"),value = function() manAttributeInf())%>%  #set is a part of the trajectory-always
   addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
@@ -153,8 +162,8 @@ manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
-  rollback(amount = 4, times = 5)
-
+  rollback(amount = 4,times = 5)%>%
+  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)
 
 womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(keys = c("tiredness","GroundWorkeoutDone","gradualParallelBarsDone","BarDone","jumpToolDone","VideoTestersRoom","counter"),value = function() womanAttributeInf())%>%  #set is a part of the trajectory-always
@@ -163,15 +172,16 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
-  rollback(amount = 4, times = 5)
+  rollback(amount = 4, times = 3)%>%
+  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)
 
 
   
   
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function()rexp(1,2))%>%
-  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,2))
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047))%>%
+  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,0.881))
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
 
@@ -179,6 +189,8 @@ set.seed(345)
 reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
                             
                                   
+lab <-  get_mon_resources(olympicsGames)
+olympicsGamesData<-get_mon_arrivals(olympicsGames)
 
 
                                 
