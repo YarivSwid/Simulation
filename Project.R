@@ -1,3 +1,8 @@
+findStartTime<- function(now){
+  thisTime <- now
+  endTime <- 60-thisTime%%60
+  return(endTime)
+}
 
 trimmedNorm<-function(mu,sd){
   while(TRUE){
@@ -58,6 +63,7 @@ getProbabilityVectorMan<-function(vect){
 
 simulationTimeolimpicsGames<-14*60
 VideoTesters_schedule<-schedule(timetable = c(0, 120), values = c(0, 2), period = Inf)
+VideoTesters_schedule_queue<-schedule(timetable = c(0, 120), values = c(0, Inf), period = Inf)
 nutritionist_schedule<-schedule(timetable = c(0, 120), values = c(0, 1), period = Inf)
 Physiotherapist_schedule<-schedule(timetable = c(0, 120,360,600), values = c(0,2,5,3), period = Inf)
 
@@ -77,11 +83,11 @@ olympicsGames<-
   add_resource(name="horizonalBar", capacity=1,queue_size=Inf)%>%
   add_resource(name="jumpToolA", capacity=1,queue_size=Inf)%>%
   add_resource(name="jumpToolB", capacity=1,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom1", capacity=VideoTesters_schedule,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom2", capacity=VideoTesters_schedule,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom3", capacity=VideoTesters_schedule,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom4", capacity=VideoTesters_schedule,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom5", capacity=VideoTesters_schedule,queue_size=Inf)%>%
+  add_resource(name="VideoTestersRoom1", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
+  add_resource(name="VideoTestersRoom2", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
+  add_resource(name="VideoTestersRoom3", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
+  add_resource(name="VideoTestersRoom4", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
+  add_resource(name="VideoTestersRoom5", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
   add_resource(name="nutritionist1", capacity=nutritionist_schedule,queue_size=Inf)%>%
   add_resource(name="nutritionist2", capacity=nutritionist_schedule,queue_size=Inf)%>%
   add_resource(name="Physiotherapist", capacity=Physiotherapist_schedule,queue_size=Inf)%>%
@@ -147,7 +153,7 @@ didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
   log_("I didnt watched the tape")
   
 nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
-  batch(10, timeout = 60, permanent = FALSE)%>% #"waiting area"
+  batch(10, timeout = function() findStartTime(now(olympicsGames)), permanent = FALSE)%>% #"waiting area"
   simmer::select(resources = c("nutritionist1","nutritionist2"),policy ="shortest-queue-available") %>%
   seize_selected(amount=1)%>%
   timeout(function() runif(1,30,40))%>%
@@ -175,12 +181,11 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   rollback(amount = 4, times = 3)%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)
 
-
   
   
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047))%>%
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047),mon=2)%>%
   add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,0.881))
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
@@ -191,7 +196,7 @@ reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
                                   
 lab <-  get_mon_resources(olympicsGames)
 olympicsGamesData<-get_mon_arrivals(olympicsGames)
-
+yariv <- get_mon_attributes(olympicsGames)
 
                                 
                                 
