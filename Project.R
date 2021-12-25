@@ -102,11 +102,12 @@ getProbabilityVectorMan<-function(vect){
 
 
 
+
 ##----------------------------------------- 2.  all simulation parameters ------------------------------------------------
 
 simulationTimeolimpicsGames<-14*60
-VideoTesters_schedule<-schedule(timetable = c(0, 120), values = c(0, 2), period = Inf)
-VideoTesters_schedule_queue<-schedule(timetable = c(0, 120), values = c(0, Inf), period = Inf)
+VideoTesters_schedule<-schedule(timetable = c(0,120), values = c(0, 2), period = Inf)
+VideoTesters_schedule_queue<-schedule(timetable = c(0,120), values = c(0, Inf), period = Inf)
 nutritionist_schedule<-schedule(timetable = c(0, 120), values = c(0, 1), period = Inf)
 Physiotherapist_schedule<-schedule(timetable = c(0, 120,360,600), values = c(0,2,5,3), period = Inf)
 
@@ -126,13 +127,13 @@ olympicsGames<-
   add_resource(name="horizonalBar", capacity=1,queue_size=Inf)%>%
   add_resource(name="jumpToolA", capacity=1,queue_size=Inf)%>%
   add_resource(name="jumpToolB", capacity=1,queue_size=Inf)%>%
-  add_resource(name="VideoTestersRoom1", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
-  add_resource(name="VideoTestersRoom2", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
-  add_resource(name="VideoTestersRoom3", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
-  add_resource(name="VideoTestersRoom4", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
-  add_resource(name="VideoTestersRoom5", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
-  add_resource(name="nutritionist1", capacity=nutritionist_schedule,queue_size=Inf)%>%
-  add_resource(name="nutritionist2", capacity=nutritionist_schedule,queue_size=Inf)%>%
+  add_resource(name="VideoTestersRoom1", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue,preemptive =TRUE)%>%
+  add_resource(name="VideoTestersRoom2", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue,preemptive =TRUE)%>%
+  add_resource(name="VideoTestersRoom3", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue,preemptive =TRUE)%>%
+  add_resource(name="VideoTestersRoom4", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue,preemptive =TRUE)%>%
+  add_resource(name="VideoTestersRoom5", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue,preemptive =TRUE)%>%
+  add_resource(name="nutritionist1", capacity=nutritionist_schedule,queue_size=Inf,preemptive =TRUE)%>%
+  add_resource(name="nutritionist2", capacity=nutritionist_schedule,queue_size=Inf,preemptive =TRUE)%>%
   add_resource(name="Physiotherapist", capacity=Physiotherapist_schedule,queue_size=Inf,preemptive = TRUE)%>%
   add_resource(name="MansLockeRooms", capacity=20,queue_size=Inf)%>%
   add_resource(name="WomansLockeRooms", capacity=20,queue_size=Inf)%>%
@@ -182,7 +183,7 @@ BarWorkeoutTrajectory<-trajectory("BarWorkeoutTrajectory")%>%
   set_attribute(key=c("BarDone"),value=function()0)
 
 gradualParallelBarsTrajectory<-trajectory("gradualParallelBarsTrajectory")%>%
-  addService("ParallelBars",function()trimmedNorm(5,1.7))%>%
+  addService("ParallelBars",function() trimmedNorm(5,1.7))%>%
   set_attribute(key=c("gradualParallelBarsDone"),value=function()0)
 
 
@@ -203,7 +204,53 @@ nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
   log_("I watched the lecture")%>%
   release_selected(amount=1)%>%
   separate()
-  
+
+breakPhysiotherapistTrajectory <- trajectory("breakPhysiotherapistTrajectory")%>%
+    seize("Physiotherapist",amount=5)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("Physiotherapist",amount=5)
+
+breakNutritionist1Trajectory <- trajectory("breakNutritionist1Trajectory")%>%
+    seize("nutritionist1",amount=1)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("nutritionist1",amount=1)
+
+breakNutritionist2Trajectory <- trajectory("breakNutritionist2Trajectory")%>%
+    seize("nutritionist2",amount=1)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("nutritionist2",amount=1)
+
+breakVideo1Trajectory <- trajectory("breakVideo1Trajectory")%>%
+    seize("VideoTestersRoom1",amount=2)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("VideoTestersRoom1",amount=2)
+
+breakVideo2Trajectory <- trajectory("breakVideo2Trajectory")%>%
+  seize("VideoTestersRoom2",amount=2)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("VideoTestersRoom2",amount=2)
+
+breakVideo3Trajectory <- trajectory("breakVideo3Trajectory")%>%
+  seize("VideoTestersRoom3",amount=2)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("VideoTestersRoom3",amount=2)
+
+breakVideo4Trajectory <- trajectory("breakVideo4Trajectory")%>%
+    seize("VideoTestersRoom4",amount=2)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("VideoTestersRoom4",amount=2)
+
+breakVideo5Trajectory <- trajectory("breakVideo5Trajectory")%>%
+    seize("VideoTestersRoom5",amount=2)%>%
+    timeout(function() get_global(olympicsGames,"breakTime"))%>%
+    release("VideoTestersRoom5",amount=2)
+
+breakTrajectory <- trajectory("breakTrajectory")%>%
+  set_global(keys = "breakTime",value=trimmedNorm(6,50/60))%>%
+  clone(8,breakPhysiotherapistTrajectory,breakNutritionist1Trajectory,breakNutritionist2Trajectory,breakVideo1Trajectory,breakVideo2Trajectory,breakVideo3Trajectory,breakVideo4Trajectory,breakVideo5Trajectory)%>%
+  synchronize(wait=TRUE)
+
+
 manTrajectory<-trajectory("manTrajectory")%>%
   set_global(keys = "HighTirednessMan",value=function() 2.9)%>%
   set_attribute(keys = c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter","times"),value = function() manAttributeInf())%>%  #set is a part of the trajectory-always
@@ -230,22 +277,22 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
-  rollback(amount = 6, times = 3,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
+  rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
   addService("womansShower",function() runif(1,8,14))
-
+  
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047),mon=2,priority=0)%>%  
-  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function() rexp(1,0.881),mon=2,priority=0)
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047),mon=2,priority=0,preemptible = 3,restart = TRUE)%>%  
+  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function() rexp(1,0.881),mon=2,priority=0,preemptible = 3,restart = TRUE)%>%
+  add_generator(name="break", trajectory=breakTrajectory,distribution=at(420),mon=2,priority=10,restart = TRUE)
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
 
 set.seed(345)
 reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
-                            
                                   
 mon_resources <-  get_mon_resources(olympicsGames)
 mon_arrivals<-get_mon_arrivals(olympicsGames)
