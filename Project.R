@@ -3,26 +3,37 @@ findStartTime<- function(now){
   endTime <- 60-thisTime%%60
   return(endTime)
 }
+getPriorityMan <- function(tiredness){
+  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+  if(tiredness>=2.9){
+    return(1)
+  }
+  return(0)
+}
+getPriorityWoman <- function(tiredness){
+  print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+  print(tiredness)
+  if(tiredness>=2.4){
+    return(1)
+  }
+  return(0)
+}
 tierdnessValue <- function()
 {
   u1 <- runif(1,0,1)
   u2 <- runif(1,0,1)
   print(u1)
+  
   if(u1 <1/3)
-  {
-    res <-  (u2/8)^(1/3)
-  }
+  {AddToTiredness <-  (u2/8)^(1/3)}
   
   if(1/3<= u1 & u1<2/3)
-  {
-    res <- u2/6
-  }
+  {AddToTiredness <- u2/6}
   
   if(2/3<= u1 & u1<1)
-  {
-    res <-  (1+(9-u2)^(1/2))/3
-  }
-  return(res) 
+  {AddToTiredness <-  (1+(9-u2)^(1/2))/3}
+  
+  return(AddToTiredness) 
 }
 
 trimmedNorm<-function(mu,sd){
@@ -103,7 +114,7 @@ olympicsGames<-
   add_resource(name="VideoTestersRoom5", capacity=VideoTesters_schedule,queue_size=VideoTesters_schedule_queue)%>%
   add_resource(name="nutritionist1", capacity=nutritionist_schedule,queue_size=Inf)%>%
   add_resource(name="nutritionist2", capacity=nutritionist_schedule,queue_size=Inf)%>%
-  add_resource(name="Physiotherapist", capacity=Physiotherapist_schedule,queue_size=Inf)%>%
+  add_resource(name="Physiotherapist", capacity=Physiotherapist_schedule,queue_size=Inf,preemptive = TRUE)%>%
   add_resource(name="MansLockeRooms", capacity=20,queue_size=Inf)%>%
   add_resource(name="WomansLockeRooms", capacity=20,queue_size=Inf)%>%
   add_resource(name="mansShower", capacity=5,queue_size=Inf)%>%
@@ -175,31 +186,38 @@ nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
   separate()
   
 manTrajectory<-trajectory("manTrajectory")%>%
+  set_global(keys = "HighTirednessMan",value=function() 2.9)%>%
   set_attribute(keys = c("tiredness","ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone","VideoTestersRoom","counter"),value = function() manAttributeInf())%>%  #set is a part of the trajectory-always
   addService("MansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
   branch(option=function() rdiscrete (1,getProbabilityVectorMan(get_attribute(olympicsGames,c("ParallelBarsDone","ringsDone","horizonalBarDone","pommelHorseDone","GroundWorkeoutDone","jumpToolDone"))),c(1,2,3,4,5,6)) ,continue= c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE),ParallelBarsTrajectory,ringsTrajectory,horizonalBarTrajectory,pommelHorseTrajectory,GroundWorkeoutTrajectory,jumpToolTrajectory)%>%
   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
+  set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
-  rollback(amount = 4,times = 5)%>%
-  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)
+  rollback(amount = 5,times = 5)%>%
+  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
+  set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
+  addService("Physiotherapist",function() rtriangle(1,25,40,33))
+  
 
 womanTrajectory<-trajectory("womanTrajectory")%>%
+  set_global(keys = "HighTirednessWoman",value=function() 2.4)%>%
   set_attribute(keys = c("tiredness","GroundWorkeoutDone","gradualParallelBarsDone","BarDone","jumpToolDone","VideoTestersRoom","counter"),value = function() womanAttributeInf())%>%  #set is a part of the trajectory-always
   addService("WomansLockeRooms",function() runif(1,3,5))%>% #Getting organized in locker rooms
   branch(option=function() rdiscrete (1,getProbabilityVectorMan(get_attribute(olympicsGames,c("GroundWorkeoutDone","gradualParallelBarsDone","BarDone","jumpToolDone"))),c(1,2,3,4)) ,continue= c(TRUE,TRUE,TRUE,TRUE),GroundWorkeoutTrajectory,gradualParallelBarsTrajectory,BarWorkeoutTrajectory,jumpToolTrajectory)%>%
   set_attribute(key=c("counter"),value=function() get_attribute(olympicsGames,"counter")+1)%>%
+  set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
-  rollback(amount = 4, times = 3)%>%
-  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)
+  rollback(amount = 5, times = 3)%>%
+  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
+  set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
+  addService("Physiotherapist",function() rtriangle(1,25,40,33))
 
-  
-  
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047),mon=2)%>%
-  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,0.881))
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function() trimmedNorm(1.134,1.047),mon=2,priority=0)%>%  
+  add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function() rexp(1,0.881),mon=2,priority=0)
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
 
