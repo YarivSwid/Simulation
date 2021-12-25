@@ -170,7 +170,7 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   
   ##----------------------------------------- 5.  All Generators, ALWAYS LAST. ------------------------------------------------
 olympicsGames%>% 
-  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function()rexp(1,0.05))%>%
+  add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=function()rexp(1,2))%>%
   add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=function()rexp(1,2))
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
