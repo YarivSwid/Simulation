@@ -31,7 +31,6 @@ getPriorityMan <- function(tiredness){
   return(0)
 }
 getPriorityWoman <- function(tiredness){
-  print(tiredness)
   if(tiredness>=2.4){
     return(1)
   }
@@ -41,7 +40,6 @@ tierdnessValue <- function()
 {
   u1 <- runif(1,0,1)
   u2 <- runif(1,0,1)
-  print(u1)
   
   if(u1 <1/3)
   {AddToTiredness <-  (u2/8)^(1/3)}
@@ -96,7 +94,6 @@ getVideoRoom<-function(){
 getProbabilityVectorMan<-function(vect){
   leftOvers <- sum(vect)
   vect <- vect/leftOvers
-  print(vect)
   return (vect)
 }
 
@@ -143,28 +140,22 @@ olympicsGames<-
 ##----------------------------------------- 4.  All trajectories, start from main trajectory and add sub-trajectories ABOVE IT it . ------------------------------------------------
 
 ParallelBarsTrajectory<-trajectory("ParallelBarsTrajectory")%>%
-  log_("Not paralll bars please no!")%>%
   addService("ParallelBars",function()trimmedNorm(5,1.7))%>%
   set_attribute(key=c("ParallelBarsDone"),value=function()0)
 
 ringsTrajectory<-trajectory("ringsTrajectory")%>%
-  log_("we are doing rings right?")%>%
   addService("rings",function()trimmedNorm(5,1.7))%>%
   set_attribute(key=c("ringsDone"),value=function()0)
 
 horizonalBarTrajectory<-trajectory("horizonalBarTrajectory")%>%
-  log_("I love horizonal bars")%>%
   addService("horizonalBar",function()trimmedNorm(5,1.7))%>%
-  log_("NOW TO THE MANU")%>%
   set_attribute(key=c("horizonalBarDone"),value=function() 0)
 
 pommelHorseTrajectory<-trajectory("pommelHorseTrajectory")%>%
-  log_("Pommle horse is kinda fine")%>%
   addService("pommelHorse",function()trimmedNorm(5,1.7))%>%
   set_attribute(key=c("pommelHorseDone"),value=function()0)
 
 GroundWorkeoutTrajectory<-trajectory("GroundWorkeoutTrajectory")%>%
-  log_("Ground workout is hard")%>%
   addService("GroundWorkeout",function()trimmedNorm(5,1.7))%>%
   set_attribute(key=c("GroundWorkeoutDone"),value=function()0)
 
@@ -194,14 +185,13 @@ VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
   set_attribute(key=c("counter"),value=function() 0)
 
 didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
-  log_("I didnt watched the tape")
+  log_("")
   
 nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
   batch(10, timeout = function() findStartTime(now(olympicsGames)), permanent = FALSE)%>% #"waiting area"
   simmer::select(resources = c("nutritionist1","nutritionist2"),policy ="shortest-queue-available") %>%
   seize_selected(amount=1)%>%
   timeout(function() runif(1,30,40))%>%
-  log_("I watched the lecture")%>%
   release_selected(amount=1)%>%
   separate()
 
@@ -226,12 +216,12 @@ breakVideo1Trajectory <- trajectory("breakVideo1Trajectory")%>%
     release("VideoTestersRoom1",amount=2)
 
 breakVideo2Trajectory <- trajectory("breakVideo2Trajectory")%>%
-  seize("VideoTestersRoom2",amount=2)%>%
+    seize("VideoTestersRoom2",amount=2)%>%
     timeout(function() get_global(olympicsGames,"breakTime"))%>%
     release("VideoTestersRoom2",amount=2)
 
 breakVideo3Trajectory <- trajectory("breakVideo3Trajectory")%>%
-  seize("VideoTestersRoom3",amount=2)%>%
+    seize("VideoTestersRoom3",amount=2)%>%
     timeout(function() get_global(olympicsGames,"breakTime"))%>%
     release("VideoTestersRoom3",amount=2)
 
