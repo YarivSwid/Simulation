@@ -166,6 +166,9 @@ getProbabilityVector<-function(vect){
   return (vect)
 }
 
+# coffe 
+# nuterist on zoom
+# tiredness
 
 ##----------------------------------------- 2.  all simulation parameters ------------------------------------------------
 
@@ -217,30 +220,30 @@ olympicsGames<-
 #-------------------4.1 All the appliances trajectories-------------------------------
 
 ParallelBarsTrajectory<-trajectory("ParallelBarsTrajectory")%>%
-  addService("ParallelBars",function()trimmedNorm(5,1.7))%>%
+  addService("ParallelBars",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("ParallelBarsDone"),value=function()0)#update that the gymnast performed this appliance
 
 ringsTrajectory<-trajectory("ringsTrajectory")%>%
-  addService("rings",function()trimmedNorm(5,1.7))%>%
+  addService("rings",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("ringsDone"),value=function()0)
 
 horizonalBarTrajectory<-trajectory("horizonalBarTrajectory")%>%
-  addService("horizonalBar",function()trimmedNorm(5,1.7))%>%
+  addService("horizonalBar",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("horizonalBarDone"),value=function() 0)
 
 pommelHorseTrajectory<-trajectory("pommelHorseTrajectory")%>%
-  addService("pommelHorse",function()trimmedNorm(5,1.7))%>%
+  addService("pommelHorse",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("pommelHorseDone"),value=function()0)
 
 GroundWorkeoutTrajectory<-trajectory("GroundWorkeoutTrajectory")%>%
-  addService("GroundWorkeout",function()trimmedNorm(5,1.7))%>%
+  addService("GroundWorkeout",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("GroundWorkeoutDone"),value=function()0)
 
 #we have two jump tools, so the gymnast will go to the jump tool with the shortest queue
 jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>% 
   simmer::select(resources =c("jumpToolA","jumpToolB"),policy ="shortest-queue-available" ) %>%
   seize_selected(amount = 1) %>%
-  timeout(function()trimmedNorm(5,1.7)) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
   release_selected(amount = 1)%>%
   set_attribute(key=c("jumpToolDone"),value=function()0)
 
@@ -248,12 +251,12 @@ jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>%
 BarWorkeoutTrajectory<-trajectory("BarWorkeoutTrajectory")%>%
   simmer::select(resources =c("barA","barB"),policy ="shortest-queue-available" ) %>%
   seize_selected(amount = 1) %>%
-  timeout(function()trimmedNorm(5,1.7)) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
   release_selected(amount = 1)%>%
   set_attribute(key=c("BarDone"),value=function()0)
 
 gradualParallelBarsTrajectory<-trajectory("gradualParallelBarsTrajectory")%>%
-  addService("gradualParallelBars",function() trimmedNorm(5,1.7))%>%
+  addService("gradualParallelBars",function() trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("gradualParallelBarsDone"),value=function()0)
 
 
@@ -356,7 +359,7 @@ manTrajectory<-trajectory("manTrajectory")%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
   rollback(amount = 6,check = function() getIfMaxTiredMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
+  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
   addService("mansShower",function() runif(1,8,14))
@@ -374,7 +377,7 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
   rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
+  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
   addService("womansShower",function() runif(1,8,14))
@@ -506,8 +509,5 @@ avgResQueue <- avgQueue(time, queueLength, simulationTimeolimpicsGames)
 paste(avgResQueue)
 paste("Average queue len for the barista was ",avgResQueue, "people")
 
-  
-  lengthOfQueue <- avgQueue()
 
 
-paste(p)

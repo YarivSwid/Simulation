@@ -22,6 +22,9 @@
 #male_lamda <- as.double(fit_male2$estimate[1])
 #female_lamda <- as.double(fit_female2$estimate[1])
 
+# coffe alternative
+# add groundWorkout resource
+# add gradualparralels
 
 ##----------------------------------------- 1.  all functions ------------------------------------------------
 
@@ -194,6 +197,8 @@ olympicsGames<-
   add_resource(name="GroundWorkeout", capacity=1,queue_size=Inf)%>%
   add_resource(name="ParallelBars", capacity=1,queue_size=Inf)%>%
   add_resource(name="gradualParallelBars", capacity=1,queue_size=Inf)%>%
+  add_resource(name="gradualParallelBarsB", capacity=1,queue_size=Inf)%>%
+  add_resource(name="GroundWorkeoutB", capacity=1,queue_size=Inf)%>%
   add_resource(name="rings", capacity=1,queue_size=Inf)%>%
   add_resource(name="pommelHorse", capacity=1,queue_size=Inf)%>%
   add_resource(name="horizonalBar", capacity=1,queue_size=Inf)%>%
@@ -217,30 +222,33 @@ olympicsGames<-
 #-------------------4.1 All the appliances trajectories-------------------------------
 
 ParallelBarsTrajectory<-trajectory("ParallelBarsTrajectory")%>%
-  addService("ParallelBars",function()trimmedNorm(5,1.7))%>%
+  addService("ParallelBars",function() trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("ParallelBarsDone"),value=function()0)#update that the gymnast performed this appliance
 
 ringsTrajectory<-trajectory("ringsTrajectory")%>%
-  addService("rings",function()trimmedNorm(5,1.7))%>%
+  addService("rings",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("ringsDone"),value=function()0)
 
 horizonalBarTrajectory<-trajectory("horizonalBarTrajectory")%>%
-  addService("horizonalBar",function()trimmedNorm(5,1.7))%>%
+  addService("horizonalBar",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("horizonalBarDone"),value=function() 0)
 
 pommelHorseTrajectory<-trajectory("pommelHorseTrajectory")%>%
-  addService("pommelHorse",function()trimmedNorm(5,1.7))%>%
+  addService("pommelHorse",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("pommelHorseDone"),value=function()0)
 
 GroundWorkeoutTrajectory<-trajectory("GroundWorkeoutTrajectory")%>%
-  addService("GroundWorkeout",function()trimmedNorm(5,1.7))%>%
+  simmer::select(resources =c("GroundWorkeout","GroundWorkeoutB"),policy ="shortest-queue-available" ) %>%
+  seize_selected(amount = 1) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
+  release_selected(amount = 1)%>%
   set_attribute(key=c("GroundWorkeoutDone"),value=function()0)
 
 #we have two jump tools, so the gymnast will go to the jump tool with the shortest queue
 jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>% 
   simmer::select(resources =c("jumpToolA","jumpToolB"),policy ="shortest-queue-available" ) %>%
   seize_selected(amount = 1) %>%
-  timeout(function()trimmedNorm(5,1.7)) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
   release_selected(amount = 1)%>%
   set_attribute(key=c("jumpToolDone"),value=function()0)
 
@@ -248,14 +256,21 @@ jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>%
 BarWorkeoutTrajectory<-trajectory("BarWorkeoutTrajectory")%>%
   simmer::select(resources =c("barA","barB"),policy ="shortest-queue-available" ) %>%
   seize_selected(amount = 1) %>%
-  timeout(function()trimmedNorm(5,1.7)) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
   release_selected(amount = 1)%>%
   set_attribute(key=c("BarDone"),value=function()0)
 
 gradualParallelBarsTrajectory<-trajectory("gradualParallelBarsTrajectory")%>%
-  addService("gradualParallelBars",function() trimmedNorm(5,1.7))%>%
+  simmer::select(resources =c("gradualParallelBars","gradualParallelBarsB"),policy ="shortest-queue-available" ) %>%
+  seize_selected(amount = 1) %>%
+  timeout(function()trimmedNorm(5*0.75,1.7)) %>%
+  release_selected(amount = 1)%>%
   set_attribute(key=c("gradualParallelBarsDone"),value=function()0)
 
+  
+  
+  
+  
 
 #-------------------4.2Video Testers service trajectories-------------------------------
 
@@ -426,12 +441,6 @@ from fullDataFalse
 where resource == 'GroundWorkeout'
 group by replication")
 
-ParallelBarsRep <- sqldf(
-  "select replication, avg(end_time - start_time-activity_time) as meanFlow
-from fullDataFalse
-where resource == 'ParallelBars'
-group by replication")
-
 gradualParallelBarsRep <- sqldf(
   "select replication, avg(end_time - start_time-activity_time) as meanFlow
 from fullDataFalse
@@ -470,11 +479,6 @@ from fullDataAtt
 where (key=='tiredness'and value>2.9 and name not like '%woman%')or(key=='tiredness'and value>2.4 and name like '%woman%')
 group by replication")
 
-folowVideo <- sqldf(
-  "select replication, avg(end_time - start_time-activity_time) as meanFlow
-from fullDataFalse
-where resource == 'VideoTestersRoom1'
-group by replication")
 mon_resources <-  get_mon_resources(olympicsGames)
 mon_arrivals<-get_mon_arrivals(olympicsGames,ongoing = T)
 mon_arrivalsWithoutOngoing<-get_mon_arrivals(olympicsGames,ongoing = F)
@@ -506,8 +510,8 @@ avgResQueue <- avgQueue(time, queueLength, simulationTimeolimpicsGames)
 paste(avgResQueue)
 paste("Average queue len for the barista was ",avgResQueue, "people")
 
-  
-  lengthOfQueue <- avgQueue()
+
+lengthOfQueue <- avgQueue()
 
 
 paste(p)
