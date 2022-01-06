@@ -25,7 +25,19 @@
 
 ##----------------------------------------- 1.  all functions ------------------------------------------------
 
+getProbabilityIfNeedToWaitMan <-  function(tiredness,times,counter){
+  if((tiredness>=2.9 | times>=6) & counter!=0){#needToWait
+    return(c(1,0))
+  }
+  return(c(0,1))#needToBackToappliances
+}
 
+getProbabilityIfNeedToWaitWoman <-  function(tiredness,times,counter){
+  if((tiredness>=2.4 | times>=6) & counter!=0){#needToWait
+    return(c(1,0))
+  }
+  return(c(0,1))#needToBackToappliances
+}
 
 avgQueue <- function(time, queueLength, simTime){
   Lavg = 0;
@@ -267,9 +279,23 @@ VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
   set_attribute(key=c("counter"),value=function() 0)#update the counter value to 0 (how many videos the gymnast has left to watch)
 
 #reject trajectory - (reject) - if the gymnast did not catch the Video Tester (before 8:00 am) he go to this trajectory
-didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
+WaitToVideoTester<-trajectory("WaitToVideoTester")%>%
+  timeout(121-now(olympicsGames))%>%
+  simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%#select again the Video Testers Room he success to seize in the main trajectory   
+  seize_selected(amount=1)%>%
+  timeout(function() timeoutVideo(get_attribute(olympicsGames,"counter")))%>% #watch "counter" videos
+  release_selected(amount = 1)%>%
+  set_attribute(key=c("counter"),value=function() 0)#update the counter value to 0 (how many videos the gymnast has left to watch)
+
+BackToappliances <- trajectory("BackToappliances")%>%
   log_("")
 
+#reject trajectory - (reject) - if the gymnast did not catch the Video Tester (before 8:00 am) he go to this trajectory
+didntWatchTheVideoM<-trajectory("didntWatchTheVideoM")%>%
+  branch (option = function()  rdiscrete(1,getProbabilityIfNeedToWaitMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times"),get_attribute(olympicsGames,"counter")),c(1,2)) , continue = c(TRUE,TRUE) ,WaitToVideoTester,BackToappliances)
+
+didntWatchTheVideoW<-trajectory("didntWatchTheVideoW")%>%
+  branch (option = function()  rdiscrete(1,getProbabilityIfNeedToWaitWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times"),get_attribute(olympicsGames,"counter")),c(1,2)) , continue = c(TRUE,TRUE) ,WaitToVideoTester,BackToappliances)
 
 #-------------------4.3 nutritionist trajectories-------------------------------
 
@@ -354,7 +380,7 @@ manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
-  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
+  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoM )%>%
   rollback(amount = 6,check = function() getIfMaxTiredMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
@@ -372,7 +398,7 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
-  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
+  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoW )%>%
   rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%

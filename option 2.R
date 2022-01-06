@@ -25,7 +25,19 @@
 
 ##----------------------------------------- 1.  all functions ------------------------------------------------
 
+getProbabilityIfNeedToWaitMan <-  function(tiredness,times,counter){
+  if((tiredness>=2.9 | times>=6) & counter!=0){#needToWait
+    return(c(1,0))
+  }
+  return(c(0,1))#needToBackToappliances
+}
 
+getProbabilityIfNeedToWaitWoman <-  function(tiredness,times,counter){
+  if((tiredness>=2.4 | times>=6) & counter!=0){#needToWait
+    return(c(1,0))
+  }
+  return(c(0,1))#needToBackToappliances
+}
 
 avgQueue <- function(time, queueLength, simTime){
   Lavg = 0;
@@ -239,6 +251,9 @@ GroundWorkeoutTrajectory<-trajectory("GroundWorkeoutTrajectory")%>%
   addService("GroundWorkeout",function()trimmedNorm(5*0.75,1.7))%>%
   set_attribute(key=c("GroundWorkeoutDone"),value=function()0)
 
+Manager <- trajectory("Manager")%>%
+  set_global("tiredness",0)
+
 #we have two jump tools, so the gymnast will go to the jump tool with the shortest queue
 jumpToolTrajectory<-trajectory("jumpToolTrajectory")%>% 
   simmer::select(resources =c("jumpToolA","jumpToolB"),policy ="shortest-queue-available" ) %>%
@@ -270,8 +285,23 @@ VideoTestersTrajectory<-trajectory("VideoTestersTrajectory")%>%
   set_attribute(key=c("counter"),value=function() 0)#update the counter value to 0 (how many videos the gymnast has left to watch)
 
 #reject trajectory - (reject) - if the gymnast did not catch the Video Tester (before 8:00 am) he go to this trajectory
-didntWatchTheVideo<-trajectory("didntWatchTheVideo")%>%
+WaitToVideoTester<-trajectory("WaitToVideoTester")%>%
+  timeout(121-now(olympicsGames))%>%
+  simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%#select again the Video Testers Room he success to seize in the main trajectory   
+  seize_selected(amount=1)%>%
+  timeout(function() timeoutVideo(get_attribute(olympicsGames,"counter")))%>% #watch "counter" videos
+  release_selected(amount = 1)%>%
+  set_attribute(key=c("counter"),value=function() 0)#update the counter value to 0 (how many videos the gymnast has left to watch)
+
+BackToappliances <- trajectory("BackToappliances")%>%
   log_("")
+
+#reject trajectory - (reject) - if the gymnast did not catch the Video Tester (before 8:00 am) he go to this trajectory
+didntWatchTheVideoM<-trajectory("didntWatchTheVideoM")%>%
+  branch (option = function()  rdiscrete(1,getProbabilityIfNeedToWaitMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times"),get_attribute(olympicsGames,"counter")),c(1,2)) , continue = c(TRUE,TRUE) ,WaitToVideoTester,BackToappliances)
+
+didntWatchTheVideoW<-trajectory("didntWatchTheVideoW")%>%
+  branch (option = function()  rdiscrete(1,getProbabilityIfNeedToWaitWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times"),get_attribute(olympicsGames,"counter")),c(1,2)) , continue = c(TRUE,TRUE) ,WaitToVideoTester,BackToappliances)
 
 
 #-------------------4.3 nutritionist trajectories-------------------------------
@@ -357,7 +387,7 @@ manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
-  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
+  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoM )%>%
   rollback(amount = 6,check = function() getIfMaxTiredMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
@@ -375,7 +405,7 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("tiredness"),value=function()tierdnessValue(),mod="+")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
-  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideo )%>%
+  seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoW )%>%
   rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
@@ -387,17 +417,19 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
 olympicsGames%>% 
   add_generator(name="gymnast_man", trajectory=manTrajectory, distribution=to(540,function() rexp(1,0.89955077)),mon=2,priority=0,preemptible = 3,restart = TRUE)%>%  
   add_generator(name="gymnast_woman", trajectory=womanTrajectory, distribution=to(540,function() rexp(1,0.7903051)),mon=2,priority=0,preemptible = 3,restart = TRUE)%>%
-  add_generator(name="break", trajectory=breakTrajectory,distribution=at(420),mon=2,priority=10,restart = TRUE)
+  add_generator(name="break", trajectory=breakTrajectory,distribution=at(420),mon=2,priority=10,restart = TRUE)%>%
+  add_generator(name="manager", trajectory=Manager,distribution=at(420))
+
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
 
-#set.seed(456)
-#reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
-mm1envs <- mclapply(1:100, function(i) {
-  set.seed(((i+100)^2)*3-7)
-  reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames) %>%
-    wrap()
-})
+set.seed(456)
+reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
+# mm1envs <- mclapply(1:100, function(i) {
+#   set.seed(((i+100)^2)*3-7)
+#   reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames) %>%
+#     wrap()
+# })
 
 # now can use simmer functions like get_mon_arrivals on the array envs:
 arrivals_Rep1 <- get_mon_arrivals(mm1envs[[1]]) # data of replication 1 only 
@@ -509,5 +541,7 @@ avgResQueue <- avgQueue(time, queueLength, simulationTimeolimpicsGames)
 paste(avgResQueue)
 paste("Average queue len for the barista was ",avgResQueue, "people")
 
-
+temp <- sqldf("select time,value
+              from mon_attributes
+              where key='tiredness'")
 
