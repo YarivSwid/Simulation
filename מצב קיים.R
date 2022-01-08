@@ -615,6 +615,30 @@ paste("The new n is =",n0+Nnew)
 halfTerp3new <-  (t*sdTiredness/sqrt(Nnew+n0))/meanTiredness
 paste(halfTerp3new)
 
+newN0 <- Nnew+n0
+paste(newN0)
+t <- 2.495
+sdQueue <- sd(AvgAllQueues$AVG)
+meanQueue <- mean(AvgAllQueues$AVG)
+halfTerp1 <-  t*(sdQueue/sqrt(newN0))
+halfTerpByMean <- halfTerp1/meanQueue
+paste(halfTerpByMean)
+
+sdGround <- sd(groudWorkoutRep$meanFlow)
+meanGround <- mean(groudWorkoutRep$meanFlow)
+halfTerp2 <-  t*(sdGround/sqrt(newN0))
+halfTerpByMean <- halfTerp2/meanGround
+paste(halfTerpByMean)
+
+sdTiredness <- sd(howMuchLeft$prec)
+meanTiredness <- mean(howMuchLeft$prec)
+halfTerp3 <-  (t*sdTiredness/sqrt(newN0))/meanTiredness
+paste(halfTerp3)
+
+sdFinished <- sd(finishedPrec$Prec)
+meanFinished <- mean(finishedPrec$Prec)
+halfTerp4 <-  t*(sdFinished/sqrt(newN0))/meanFinished
+paste(halfTerp4) 
 # 
 # half <- 
 # 
