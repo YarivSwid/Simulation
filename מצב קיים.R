@@ -87,7 +87,7 @@ findStartTime<- function(now){
 }
 
 #Check if the gymnast_man should continue to access the appliances (will not continue if he performed all the appliances or got tired)
-getIfMaxTiredMan <- function(tiredness,times){
+checkIfNeedToContinueMan <- function(tiredness,times){
   continue <- TRUE
   if(tiredness>=2.9){
     continue <- FALSE
@@ -99,7 +99,7 @@ getIfMaxTiredMan <- function(tiredness,times){
 }
 
 #Check if the gymnast_Woman should continue to access the appliances (will not continue if he performed all the appliances or got tired)
-getIfMaxTiredWoman <- function(tiredness,times){
+checkIfNeedToContinueWoman <- function(tiredness,times){
   continue <- TRUE
   if(tiredness>=2.4){
     continue <- FALSE
@@ -385,8 +385,7 @@ manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoM )%>%
-  rollback(amount = 6,check = function() getIfMaxTiredMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  log_("po")%>%
+  rollback(amount = 6,check = function() checkIfNeedToContinueMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionist2ForManTrajectory)%>%
   set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
@@ -404,8 +403,7 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoW )%>%
-  rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  log_("po")%>%
+  rollback(amount = 6,check = function() checkIfNeedToContinueWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
   branch (option = function() rdiscrete(1,c(0.32,0.68),c(0,1)), continue = c(TRUE) , nutritionist1ForWomanTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
@@ -421,112 +419,125 @@ olympicsGames%>%
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
 # set.seed(456)
 # reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
-mm1envs <- mclapply(1:15, function(i) {
+
+#the number of runs we want
+n0 <- 64
+
+#run the simulation n0 times
+mm1envs <- mclapply(1:n0, function(i) {
   set.seed(((i+100)^2)*3-7)
   reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames) %>%
     wrap()
 })
+#we calculated the t for our tests
+t <- qt(p=.03, df=n0-1, lower.tail=FALSE)
 
 mon_resources <-  get_mon_resources(olympicsGames)
 mon_arrivals<-get_mon_arrivals(olympicsGames,ongoing = T)
 mon_arrivalsWithoutOngoing<-get_mon_arrivals(olympicsGames,ongoing = F)
 mon_attributes <- get_mon_attributes(olympicsGames)
 
-# now can use simmer functions like get_mon_arrivals on the array envs:
-# arrivals_Rep1 <- get_mon_arrivals(mm1envs[[5]],T) # data of replication 1 only 
-# arrivals_Rep2 <- get_mon_arrivals(mm1envs[[99]]) # data of replication 2 only 
+fullData<-get_mon_arrivals(mm1envs) # arrivals data for all reps
+fullDataAttributes <- get_mon_attributes(mm1envs) # attributes data for all reps
+fullDataArrivalsTrue<-get_mon_arrivals(mm1envs,T) # the full arrival data of all created for all reps 
+fullDataResources<-get_mon_resources(mm1envs) # the resources data of all replications
 
-#With all these replicas, we could, for instance, perform a t-test for the flow time over all the customers in the system
 
-fullData<-get_mon_arrivals(mm1envs) # the full data of all replications
-fullDataAtt <- get_mon_attributes(mm1envs)
-fullDataFalse<-get_mon_arrivals(mm1envs,T) # the full data of all replications
-resourcesRep<-get_mon_resources(mm1envs) # the full data of all replications
-
+#check how much have finished
 finished <- sqldf("select replication,count(*) as amountFinished
                   from fullData  
                   group by replication ")
-
+#check how much have been created
 created <- sqldf("select distinct (name) as amountCreated,replication
-                  from fullDataAtt
+                  from fullDataAttributes
                   group by replication,amountCreated")
+#group by replication
 createdForeachRep <- sqldf("Select replication as n,count(*) as CreatedAmount
                            From created
                            group by replication")
-
+#calculate finish percentage
 finishedPrec <- sqldf("select n,(amountFinished),(CreatedAmount)
                         from createdForeachRep join finished on createdForeachRep.n=finished.replication
                       group by n")
-
-#paste(finishedPrec)
+#calculate finish percentage
 finishedPrec$Prec <- finishedPrec$amountFinished/finishedPrec$CreatedAmount
-paste("finished prec sd",sd(finishedPrec$Prec))###########
-paste("finished prec mean",mean(finishedPrec$Prec))#########
 
-
-timeAtPhsQueue <- sqldf("select replication, avg(end_time - start_time-activity_time) as timeAtQueue 
-from fullDataFalse
-where resource == 'Physiotherapist'
-group by replication");
-paste(sd(timeAtPhsQueue$timeAtQueue))
-paste(mean(timeAtPhsQueue$timeAtQueue))
-
-timeInAllQueues <- sqldf("select replication,name,resource, end_time - start_time-activity_time as meanFlow
-                         from fullDataFalse
-                         where resource NOT IN ('WomansLockeRooms','MansLockeRooms','womansShower','mansShower','nutritionist1','nutritionist2','Physiotherapist')
-                         group by replication,name,resource")
-timeInAllQueues <- sqldf("select *
-                         from timeInAllQueues
-                         where resource NOT LIKE '%video%'")
-timeInAllQueuesAVG <- sqldf("select replication,resource,avg(meanFlow) as AVG
-                            from timeInAllQueues
-                            where name Not like '%break%'
-                            group by replication,resource")
-
-AvgAllQueues <- sqldf("select replication,avg(AVG) as AVG
-                      from timeInAllQueuesAVG
-                      group by replication")
-paste("Times in all queues sd",sd(AvgAllQueues$AVG))
-paste("Times in all queues mean",mean(AvgAllQueues$AVG))
-
-howMuchLeft <- sqldf(
+#get the leaving of tiredness percentage
+howMuchLeftOfTiredness <- sqldf(
   "select replication,count(*)  as meanFlow
-from fullDataAtt
+from fullDataAttributes
 where (key=='tiredness'and value>2.9 and name not like '%woman%')or(key=='tiredness'and value>2.4 and name like '%woman%')
 group by replication")
-paste("How much left tired sd",sd(howMuchLeft$meanFlow))
-paste("How much left tired mean",mean(howMuchLeft$meanFlow))
-howMuchLeft$created <- createdForeachRep$CreatedAmount
-howMuchLeft$prec <- howMuchLeft$meanFlow/howMuchLeft$created
+#add how many created in each rep
+howMuchLeftOfTiredness$created <- createdForeachRep$CreatedAmount
+#create a column for leaving percentage 
+howMuchLeftOfTiredness$prec <- howMuchLeftOfTiredness$meanFlow/howMuchLeftOfTiredness$created
 
+#max queue for each rep in ground workout 
 groudWorkoutRep <- sqldf(
-  "select replication, avg(end_time - start_time-activity_time) as meanFlow
-from fullDataFalse
+  "select replication, max(queue) as MaxQueueLength
+from fullDataResources
 where resource == 'GroundWorkeout'
 group by replication")
-paste("Queue time GroundWorkout sd",sd(groudWorkoutRep$meanFlow))
-paste("ueue time GroundWorkout mean",mean(groudWorkoutRep$meanFlow))
+
+#create a table that contains all aspects of current state
+allAspects <- sqldf("select a.replication,MaxQueueLength,b.prec,c.Prec as finishedPr
+                    from groudWorkoutRep as a join howMuchLeftOfTiredness as b on a.replication=b.replication join
+                    finishedPrec as c on a.replication = c.n
+                    group by a.replication,MaxQueueLength,b.prec,c.Prec")
+
+
+
+
+
+
+##########OldAspectsThatWeTried#######################
+# FolowMeanData <- sqldf(
+#   "select replication, avg(end_time - start_time) as meanFlow
+# from fullData
+# group by replication")
+# AVGFolowMeanData <- sqldf("select avg(meanFlow) 
+# from FolowMeanData");
+# print(AVGFolowMeanData)
+
+
+# QueueMean <- sqldf(
+#   "select replication, avg(end_time - start_time-activity_time) as meanFlow
+# from fullData
+# group by replication")
+# AVGQueueMean <- sqldf("select avg(meanFlow) 
+# from QueueMean");
+# print(AVGQueueMean)
+# AVGhowMuchLeftOfTiredness <- sqldf("select avg(meanFlow) 
+# from howMuchLeftOfTiredness");
+# print(AVGhowMuchLeftOfTiredness)
+
 # precOf100 <- mean(finishedPrec$Prec)
 # paste(precOf100)
 # AVGfinished <- sqldf("select avg(amountFinished)
 #                       from finished")
 # paste((AVGfinished))
 
-
 # AVGtimeAtPhsQueueOp2 <- sqldf("select avg(timeAtQueue) 
 # from timeAtPhsQueue");
 # print(AVGtimeAtPhsQueueOp2)
 
+# groudWorkoutRep <- sqldf(
+#   "select replication, avg(end_time - start_time-activity_time) as meanFlow
+# from fullDataArrivalsTrue
+# where resource == 'GroundWorkeout'
+# group by replication")
+# paste("Queue time GroundWorkout sd",sd(groudWorkoutRep$meanFlow))
+# paste("ueue time GroundWorkout mean",mean(groudWorkoutRep$meanFlow))
+
 # folowVideo <- sqldf(
 #   "select replication, avg(end_time - start_time-activity_time) as meanFlow
-# from fullDataFalse
+# from fullDataArrivalsTrue
 # where resource == 'VideoTestersRoom1'
 # group by replication")
 # AVGtimeFolowVideo <- sqldf("select avg(meanFlow) 
 # from folowVideo");
 # print(AVGtimeFolowVideo)
-
-
 
 # AVGgroudWorkoutRep <- sqldf("select avg(meanFlow) 
 # from groudWorkoutRep");
@@ -534,7 +545,7 @@ paste("ueue time GroundWorkout mean",mean(groudWorkoutRep$meanFlow))
 
 # gradualParallelBarsRep <- sqldf(
 #   "select replication, avg(end_time - start_time-activity_time) as meanFlow
-# from fullDataFalse
+# from fullDataArrivalsTrue
 # where resource == 'gradualParallelBars'
 # group by replication")
 # AVGgradualParallelBarsRep <- sqldf("select avg(meanFlow) 
@@ -543,107 +554,50 @@ paste("ueue time GroundWorkout mean",mean(groudWorkoutRep$meanFlow))
 
 # ringsRep <- sqldf(
 #   "select replication, avg(end_time - start_time-activity_time) as meanFlow
-# from fullDataFalse
+# from fullDataArrivalsTrue
 # where resource == 'rings'
 # group by replication")
 # AVGringsRep <- sqldf("select avg(meanFlow) 
 # from ringsRep");
 # print(AVGringsRep)
 
-FolowMeanData <- sqldf(
-  "select replication, avg(end_time - start_time) as meanFlow
-from fullData
-group by replication")
-AVGFolowMeanData <- sqldf("select avg(meanFlow) 
-from FolowMeanData");
-print(AVGFolowMeanData)
-
-
-QueueMean <- sqldf(
-  "select replication, avg(end_time - start_time-activity_time) as meanFlow
-from fullData
-group by replication")
-AVGQueueMean <- sqldf("select avg(meanFlow) 
-from QueueMean");
-print(AVGQueueMean)
-
-
-
-# AVGhowMuchLeft <- sqldf("select avg(meanFlow) 
-# from howMuchLeft");
-# print(AVGhowMuchLeft)
-
 
 # AVGQueuesOfAllRep<- sqldf("select avg(AVG)
-#                       from AvgAllQueues") 
+#                       from AvgTimeInAllQueues") 
 # paste(AVGQueuesOfAllRep)
-n0 <- 15
-lambda <- 0.05
-test <- lambda/(1+lambda)
-a <- 0.12
-a <- 0.03
-t <- 2.8005 
-sdQueue <- sd(AvgAllQueues$AVG)
-meanQueue <- mean(AvgAllQueues$AVG)
-halfTerp1 <-  t*(sdQueue/sqrt(n0))
-halfTerpByMean <- halfTerp1/meanQueue
-paste(halfTerpByMean)
 
-sdGround <- sd(groudWorkoutRep$meanFlow)
-meanGround <- mean(groudWorkoutRep$meanFlow)
-halfTerp2 <-  t*(sdGround/sqrt(n0))
-halfTerpByMean <- halfTerp2/meanGround
-paste(halfTerpByMean)
-
-sdTiredness <- sd(howMuchLeft$prec)
-meanTiredness <- mean(howMuchLeft$prec)
-halfTerp3 <-  (t*sdTiredness/sqrt(n0))/meanTiredness
-paste(halfTerp3)
-
-sdFinished <- sd(finishedPrec$Prec)
-meanFinished <- mean(finishedPrec$Prec)
-halfTerp4 <-  t*(sdFinished/sqrt(n0))/meanFinished
-paste(halfTerp4) 
-
-
-# meanFlow <- test$estimate%>%print
-Nnew <- n0*((t*sdTiredness/sqrt(n0))/(meanTiredness*lambda))^2
-paste("Add ", Nnew," to n0")
-Nnew <- ceiling(Nnew)
-paste(Nnew)
-paste("The new n is =",n0+Nnew)
-halfTerp3new <-  (t*sdTiredness/sqrt(Nnew+n0))/meanTiredness
-paste(halfTerp3new)
-
-newN0 <- Nnew+n0
-paste(newN0)
-t <- 2.495
-sdQueue <- sd(AvgAllQueues$AVG)
-meanQueue <- mean(AvgAllQueues$AVG)
-halfTerp1 <-  t*(sdQueue/sqrt(newN0))
-halfTerpByMean <- halfTerp1/meanQueue
-paste(halfTerpByMean)
-
-sdGround <- sd(groudWorkoutRep$meanFlow)
-meanGround <- mean(groudWorkoutRep$meanFlow)
-halfTerp2 <-  t*(sdGround/sqrt(newN0))
-halfTerpByMean <- halfTerp2/meanGround
-paste(halfTerpByMean)
-
-sdTiredness <- sd(howMuchLeft$prec)
-meanTiredness <- mean(howMuchLeft$prec)
-halfTerp3 <-  (t*sdTiredness/sqrt(newN0))/meanTiredness
-paste(halfTerp3)
-
-sdFinished <- sd(finishedPrec$Prec)
-meanFinished <- mean(finishedPrec$Prec)
-halfTerp4 <-  t*(sdFinished/sqrt(newN0))/meanFinished
-paste(halfTerp4) 
+# CheckQueuesLength <- sqldf(
+#   "select replication,resource, max(queue) as MaxQueueLength
+# from fullDataResources
+#  where resource NOT IN ('WomansLockeRooms','MansLockeRooms','womansShower','mansShower','nutritionist1','nutritionist2','Physiotherapist')
+# group by replication,resource")
 # 
-# half <- 
+# allProffessionalsActivity <- sqldf(
+#   "select *
+# from mon_arrivalsWithResources
+# where (resource == 'nutritionist1' OR resource == 'nutritionist2') ")
 # 
-# test<- t.test(x= FlowMeanData$meanFlow,y=NULL, alternative="two.sided",conf.level=0.95)
-# print(test)
 # 
-# ci<-c(test$conf.int[1],test$conf.int[2])%>%print
-# meanFlow <- test$estimate%>%print
+# 
+# allProffessionalsActivity <- sqldf(
+#   "select *
+# from mon_arrivalsWithResources
+# where (resource == 'nutritionist1' OR resource == 'nutritionist2') ")
+# 
+# 
+# getMaxStart_time <- sqldf(
+#   "select max(start_time) 
+# from mon_arrivals ")
+# 
+# getCapacityChangedTimes <- sqldf(
+#   "select capacity, min(time) 
+# from mon_resources
+# where resource=='Physiotherapist'
+#   group by capacity"
+# )
+# 
+# breakCheck <- sqldf(
+#   "select *
+# from mon_arrivalsWithResources
+# where resource=='Physiotherapist' OR resource=='nutritionist1'OR resource=='nutritionist2'OR resource=='VideoTestersRoom1'OR resource=='VideoTestersRoom2'OR resource=='VideoTestersRoom3'OR resource=='VideoTestersRoom4'OR resource=='VideoTestersRoom5'"
+# )

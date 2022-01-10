@@ -63,7 +63,7 @@ findStartTime<- function(now){
 }
 
 #Check if the gymnast_man should continue to access the appliances (will not continue if he performed all the appliances or got tired)
-checkIfNeedToContinueMan <- function(tiredness,times){
+getIfMaxTiredMan <- function(tiredness,times){
   continue <- TRUE
   if(tiredness>=2.9){
     continue <- FALSE
@@ -75,7 +75,7 @@ checkIfNeedToContinueMan <- function(tiredness,times){
 }
 
 #Check if the gymnast_Woman should continue to access the appliances (will not continue if he performed all the appliances or got tired)
-checkIfNeedToContinueWoman <- function(tiredness,times){
+getIfMaxTiredWoman <- function(tiredness,times){
   continue <- TRUE
   if(tiredness>=2.4){
     continue <- FALSE
@@ -298,14 +298,12 @@ didntWatchTheVideoW<-trajectory("didntWatchTheVideoW")%>%
 
 #-------------------4.3 nutritionist trajectories-------------------------------
 
-nutritionist2ForManTrajectory<-trajectory("nutritionist2ForManTrajectory")%>%
+nutritionistTrajectory<-trajectory("nutritionistTrajectory")%>%
   batch(10, timeout = function() findStartTime(now(olympicsGames)), permanent = FALSE)%>% #"waiting area"
-  addService("nutritionist2",function() runif(1,30,40))%>%
-  separate()
-
-nutritionist1ForWomanTrajectory<-trajectory("nutritionist1ForWomanTrajectory")%>%
-  batch(10, timeout = function() findStartTime(now(olympicsGames)), permanent = FALSE)%>% #"waiting area"
-  addService("nutritionist1",function() runif(1,30,40))%>% #Getting organized in locker rooms
+  simmer::select(resources = c("nutritionist1","nutritionist2"),policy ="shortest-queue") %>%
+  seize_selected(amount=1)%>%
+  timeout(function() runif(1,30,40))%>%
+  release_selected(amount=1)%>%
   separate()
 
 
@@ -382,8 +380,8 @@ manTrajectory<-trajectory("manTrajectory")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoM )%>%
-  rollback(amount = 6,check = function() checkIfNeedToContinueMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionist2ForManTrajectory)%>%
+  rollback(amount = 6,check = function() getIfMaxTiredMan(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
+  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityMan(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
   addService("mansShower",function() runif(1,8,14))
@@ -400,8 +398,8 @@ womanTrajectory<-trajectory("womanTrajectory")%>%
   set_attribute(key=c("times"),value=function() get_attribute(olympicsGames,"times")+1)%>%
   simmer::select(resources = function() paste0("VideoTestersRoom",get_attribute(olympicsGames,"VideoTestersRoom"))) %>%
   seize_selected(1, continue = c(TRUE,TRUE) ,post.seize=VideoTestersTrajectory, reject =didntWatchTheVideoW )%>%
-  rollback(amount = 6,check = function() checkIfNeedToContinueWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
-  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionist1ForWomanTrajectory)%>%
+  rollback(amount = 6,check = function() getIfMaxTiredWoman(get_attribute(olympicsGames,"tiredness"),get_attribute(olympicsGames,"times")))%>%
+  branch (option = function() rdiscrete(1,c(0.39,0.61),c(0,1)), continue = c(TRUE) , nutritionistTrajectory)%>%
   set_prioritization(function() c(getPriorityWoman(get_attribute(olympicsGames,"tiredness")),2,FALSE))%>%
   addService("Physiotherapist",function() rtriangle(1,25,40,33))%>%
   addService("womansShower",function() runif(1,8,14))
@@ -414,67 +412,11 @@ olympicsGames%>%
   add_generator(name="break", trajectory=breakTrajectory,distribution=at(420),mon=2,priority=10,restart = TRUE)
 
 ##----------------------------------------- 6.  reset, run, plots, outputs ------------------------------------------------
-# set.seed(456)
-# reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
 
-#the number of runs we want
-n0 <- 64
-
-#run the simulation n0 times
-mm1envs <- mclapply(1:n0, function(i) {
-  set.seed(((i+100)^2)*3-7)
-  reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames) %>%
-    wrap()
-})
-#we calculated the t for our tests
-t <- qt(p=.03, df=n0-1, lower.tail=FALSE)
+set.seed(456)
+reset(olympicsGames)%>%run(until=simulationTimeolimpicsGames)
 
 mon_resources <-  get_mon_resources(olympicsGames)
 mon_arrivals<-get_mon_arrivals(olympicsGames,ongoing = T)
 mon_arrivalsWithoutOngoing<-get_mon_arrivals(olympicsGames,ongoing = F)
 mon_attributes <- get_mon_attributes(olympicsGames)
-
-fullData<-get_mon_arrivals(mm1envs) # arrivals data for all reps
-fullDataAttributes <- get_mon_attributes(mm1envs) # attributes data for all reps
-fullDataArrivalsTrue<-get_mon_arrivals(mm1envs,T) # the full arrival data of all created for all reps 
-fullDataResources<-get_mon_resources(mm1envs) # the resources data of all replications
-
-
-#check how much have finished
-finished <- sqldf("select replication,count(*) as amountFinished
-                  from fullData  
-                  group by replication ")
-
-#check how much have been created
-created <- sqldf("select distinct (name) as amountCreated,replication
-                  from fullDataAttributes
-                  group by replication,amountCreated")
-
-#check how many created in each rep
-createdForeachRep <- sqldf("Select replication as n,count(*) as CreatedAmount
-                           From created
-                           group by replication")
-#check how many has finished for each rep
-finishedPrec2 <- sqldf("select n,(amountFinished),(CreatedAmount)
-                        from createdForeachRep join finished on createdForeachRep.n=finished.replication
-                      group by n")
-#calculate finish percentage
-finishedPrec2$Prec <- finishedPrec2$amountFinished/finishedPrec2$CreatedAmount
-
-#get the leaving of tiredness percentage
-howMuchLeftOfTiredness2 <- sqldf(
-  "select replication,count(*)  as meanFlow
-from fullDataAttributes
-where (key=='tiredness'and value>2.9 and name not like '%woman%')or(key=='tiredness'and value>2.4 and name like '%woman%')
-group by replication")
-#add how many created in eac rep
-howMuchLeftOfTiredness2$created <- createdForeachRep$CreatedAmount
-#create a column for leaving percentage 
-howMuchLeftOfTiredness2$prec <- howMuchLeftOfTiredness2$meanFlow/howMuchLeftOfTiredness2$created
-
-#max queue for each rep in ground workout 
-groudWorkoutRep2 <- sqldf(
-  "select replication, max(queue) as MaxQueueLength
-from fullDataResources
-where resource == 'GroundWorkeout'
-group by replication")

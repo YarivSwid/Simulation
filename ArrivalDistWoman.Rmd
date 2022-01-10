@@ -1,0 +1,95 @@
+---
+title: "ArrivalDistWoman"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ 
+
+```
+
+we will need the following libraries: fitdistrplus, magrittr
+```{r libraries, include=TRUE,echo=TRUE}
+library(fitdistrplus)
+library(magrittr)
+```
+
+Now our samples will probably not include any negative values. We also got alot more samples. 
+```{r}
+table <- read.csv(file.choose(),header = T)
+Samples <- table[,6]
+
+```
+
+first impression
+
+```{r empirical plots2}
+par(mfrow=c(1,3)) # defines 2 plots on the same window
+plot(Samples,ylab="Sample values") # plot ( left graph )
+hist(Samples, ylab="Frequency ") # histogram (right graph)
+boxplot(Samples)
+```
+
+We will try again the normal fit and exp fit:
+
+```{r}
+normFit<-fitdist(Samples,"norm") # fitting a normal distrbution 
+summary(normFit) # summary function displays the results 
+expFit<-fitdist(Samples,"exp") # now the fit will work 
+summary(expFit)
+```
+
+We can see the difference in the Loglikelihood and in the BIC/AIC. We want higher Loglikelihood, and lower AIC/BIC.
+
+**We can conclude that the normal distribution fits our data better** 
+** Note that in real cases you dont know where the samples came from, and you should try different distributions that might fit and compare using Loglikelihood or BIC** 
+This will be seen from the plots as well:
+```{r}
+plotdist(Samples,"norm",para=list(mean=normFit$estimate[1], sd=normFit$estimate[2] ) )
+plotdist(Samples,"exp",para=list(rate=expFit$estimate[1]))
+
+```
+
+
+
+** The graphs can be combined into one graph in the following manner: ** 
+
+```{r}
+par(mfrow=c(2,2)) # manually define a 2X2 graph window 
+legendText<-c("exp","norm") # define legend text
+denscomp(list(expFit,normFit),legendtext=legendText) # histograms
+qqcomp(list(expFit,normFit),legendtext=legendText)  # qq plot
+cdfcomp(list(expFit,normFit),legendtext=legendText) # cdf plot
+ppcomp(list(expFit,normFit),legendtext=legendText) # pp plot
+```
+
+
+## 4. Perform Goodness of Fit tests on fitted distribution
+
+Now that we found a fitting distribution, we need to statisticlly test the hypothesis our data came from this distribution. for that we can use Goodness of Fit tests (GOF). We can choose between Chi-Squared (CHISQ) or Kolmogorov-Smirnov (KS).
+We will use the general function gofstat:
+
+```{r}
+normgof<- gofstat(normFit)%>%print()
+normgof$kstest%>%print()
+```
+
+The default test for continous distributions will be KS. 
+The normal distribution test - H0 is not denied, and hence we can conclude the data came from this normal distribution. 
+
+If we want to perform Chi-squared test for continuous distribution it can be forced using the "discrete = TRUE" parameter:
+
+```{r}
+normgof<- gofstat(normFit, discrete=TRUE)%>%print()
+
+```
+
+```{r}
+expgof<- gofstat(expFit)%>%print() 
+expgof$kstest%>%print()
+```
+For exp Fit - H0 is denied. 
+
