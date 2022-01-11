@@ -61,7 +61,12 @@ pairedTest9 <- t.test(x=allOftheAspects$finishedPr1,
 print(pairedTest9)
 
 
-
+# ########## used functions to get data table to order details
+# #create a table for all data parameters
+# tTestTable <- data.frame(lowerSide = c(pairedTest1$conf.int[1],pairedTest2$conf.int[1],pairedTest3$conf.int[1],pairedTest4$conf.int[1],pairedTest5$conf.int[1],pairedTest6$conf.int[1],pairedTest7$conf.int[1],pairedTest8$conf.int[1],pairedTest9$conf.int[1]),
+#                                                upperSide=c(pairedTest1$conf.int[2],pairedTest2$conf.int[2],pairedTest3$conf.int[2],pairedTest4$conf.int[2],pairedTest5$conf.int[2],pairedTest6$conf.int[2],pairedTest7$conf.int[2],pairedTest8$conf.int[2],pairedTest9$conf.int[2])
+# )
+# rownames(tTestTable) <- c("MaxQueueLengthCurrVSop1","MaxQueueLengthCurrVSop2","MaxQueueLengthop1VSop2","tirednessCurrVSop1","tirednessCurrVSop2","tirednessOp1VSOp2","finishedPrecCurrVSop1","finishedPrecCurrVSop2","finishedPrecOp1VSop2")
 
 
 
